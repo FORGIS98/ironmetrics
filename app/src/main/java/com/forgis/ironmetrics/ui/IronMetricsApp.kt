@@ -6,6 +6,18 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -18,11 +30,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun IronMetricsApp(viewModel: ExerciseViewModel) {
+fun IronMetricsApp(viewModel: ExerciseViewModel, wodViewModel: WodViewModel) {
     val context = LocalContext.current
     val exercisesState by viewModel.exercises.collectAsStateWithLifecycle()
     val selectedId by viewModel.selectedId.collectAsStateWithLifecycle()
+    val wodsState by wodViewModel.wods.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    var tab by rememberSaveable { mutableStateOf(AppTab.Strength) }
     var pendingExport by remember { mutableStateOf<String?>(null) }
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -52,15 +66,42 @@ fun IronMetricsApp(viewModel: ExerciseViewModel) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        wodViewModel.messages.collect { snackbar.showSnackbar(it) }
+    }
+
     BackHandler(enabled = selectedId != null) { viewModel.selectExercise(null) }
 
-    Box {
+    Scaffold(
+        bottomBar = {
+            if (selectedId == null) {
+                NavigationBar {
+                    AppTab.entries.forEach { entry ->
+                        NavigationBarItem(
+                            selected = tab == entry,
+                            onClick = { tab = entry },
+                            icon = { Icon(entry.icon, contentDescription = entry.label) },
+                            label = { Text(entry.label) }
+                        )
+                    }
+                }
+            }
+        }
+    ) { innerPadding ->
+    Box(Modifier.padding(innerPadding).consumeWindowInsets(innerPadding)) {
         val id = selectedId
-        if (id == null) {
+        if (tab == AppTab.Wods) {
+            WodListScreen(
+                state = wodsState,
+                onSave = wodViewModel::saveWod,
+                onDelete = wodViewModel::deleteWod
+            )
+        } else if (id == null) {
             ExerciseListScreen(
                 state = exercisesState,
                 onExerciseClick = viewModel::selectExercise,
                 onAddExercise = viewModel::addExercise,
+                onDeleteExercise = viewModel::deleteExercise,
                 onExport = viewModel::exportBackup,
                 onImport = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }
             )
@@ -74,4 +115,10 @@ fun IronMetricsApp(viewModel: ExerciseViewModel) {
         }
         SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
     }
+    }
+}
+
+private enum class AppTab(val label: String, val icon: ImageVector) {
+    Strength("Fuerza", Icons.Default.Star),
+    Wods("WODs", Icons.Default.Home)
 }

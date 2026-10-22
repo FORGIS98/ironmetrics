@@ -6,17 +6,30 @@ import com.google.gson.Gson
 data class BackupData(
     val version: Int = 1,
     val exercises: List<ExerciseEntity> = emptyList(),
-    val setLogs: List<SetLogEntity> = emptyList()
+    val setLogs: List<SetLogEntity> = emptyList(),
+    // null en backups anteriores a los WODs
+    val wods: List<WodEntity>? = null
 )
 
 class BackupManager(
     private val database: AppDatabase,
+    private val wodDatabase: WodDatabase,
     private val gson: Gson = Gson()
 ) {
     private val dao = database.exerciseDao()
+    private val wodDao = wodDatabase.wodDao()
 
-    suspend fun exportToJson(): String = database.withTransaction {
-        gson.toJson(BackupData(exercises = dao.getAllExercisesOnce(), setLogs = dao.getAllSetLogsOnce()))
+    suspend fun exportToJson(): String {
+        val wods = wodDao.getAllWodsOnce()
+        return database.withTransaction {
+            gson.toJson(
+                BackupData(
+                    exercises = dao.getAllExercisesOnce(),
+                    setLogs = dao.getAllSetLogsOnce(),
+                    wods = wods
+                )
+            )
+        }
     }
 
     /**
@@ -28,6 +41,11 @@ class BackupManager(
             ?: throw IllegalArgumentException("Empty backup")
         database.withTransaction {
             if (replace) restore(backup) else merge(backup)
+        }
+        backup.wods?.let { incoming ->
+            wodDatabase.withTransaction {
+                if (replace) restoreWods(incoming) else mergeWods(incoming)
+            }
         }
     }
 
@@ -68,5 +86,17 @@ class BackupManager(
             if (!knownLogs.add(signature)) null else log.copy(id = 0, exerciseId = exerciseId)
         }
         dao.insertSetLogs(newLogs)
+    }
+
+    private suspend fun restoreWods(incoming: List<WodEntity>) {
+        wodDao.deleteAllWods()
+        wodDao.upsertWods(incoming)
+    }
+
+    // Los WODs ya existentes (por nombre) conservan su último valor; solo se añaden los nuevos
+    private suspend fun mergeWods(incoming: List<WodEntity>) {
+        val knownNames = wodDao.getAllWodsOnce().map { it.name.lowercase() }.toMutableSet()
+        incoming.filter { knownNames.add(it.name.lowercase()) }
+            .forEach { wodDao.upsertWod(it.copy(id = 0)) }
     }
 }

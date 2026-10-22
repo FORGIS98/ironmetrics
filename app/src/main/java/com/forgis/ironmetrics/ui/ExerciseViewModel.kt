@@ -74,9 +74,18 @@ class ExerciseViewModel(
         repository.saveExercise(ExerciseEntity(name = trimmed))
     }
 
+    fun deleteExercise(id: Long) = launchSafely("Error deleting exercise") {
+        repository.deleteExercise(id)
+        _events.emit(ExerciseEvent.Message("Ejercicio eliminado"))
+    }
+
     fun addSet(weight: Double, reps: Int) {
         val id = selectedExerciseId.value ?: return emit(ExerciseEvent.Message("Select an exercise first"))
-        launchSafely("Error saving set") { repository.logSet(id, weight, reps) }
+        launchSafely("Error saving set") {
+            if (repository.logSet(id, weight, reps) == null) {
+                _events.emit(ExerciseEvent.Message("Serie no registrada: el RM teórico no supera al RM real."))
+            }
+        }
     }
 
     fun exportBackup() = launchSafely("Export failed") {

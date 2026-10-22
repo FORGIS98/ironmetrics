@@ -8,6 +8,9 @@ import androidx.activity.viewModels
 import com.forgis.ironmetrics.data.AppDatabase
 import com.forgis.ironmetrics.data.BackupManager
 import com.forgis.ironmetrics.data.ExerciseRepository
+import com.forgis.ironmetrics.data.WodDatabase
+import com.forgis.ironmetrics.data.WodRepository
+import com.forgis.ironmetrics.ui.WodViewModel
 import com.forgis.ironmetrics.ui.ExerciseViewModel
 import com.forgis.ironmetrics.ui.IronMetricsApp
 import com.forgis.ironmetrics.ui.theme.IronmetricsTheme
@@ -16,7 +19,14 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: ExerciseViewModel by viewModels {
         val db = AppDatabase.getInstance(applicationContext)
-        ExerciseViewModel.Factory(ExerciseRepository(db), BackupManager(db))
+        ExerciseViewModel.Factory(
+            ExerciseRepository(db),
+            BackupManager(db, WodDatabase.getInstance(applicationContext))
+        )
+    }
+
+    private val wodViewModel: WodViewModel by viewModels {
+        WodViewModel.Factory(WodRepository(WodDatabase.getInstance(applicationContext)))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,7 +34,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             IronmetricsTheme {
-                IronMetricsApp(viewModel)
+                IronMetricsApp(viewModel, wodViewModel)
             }
         }
     }

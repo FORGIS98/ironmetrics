@@ -15,10 +15,13 @@ class ExerciseRepository(
 
     suspend fun saveExercise(exercise: ExerciseEntity): Long = dao.upsertExercise(exercise)
 
+    suspend fun deleteExercise(id: Long) = dao.deleteExerciseById(id)
+
     /**
      * Registra una serie y actualiza los RM del ejercicio:
      * - 1 rep: actualiza el RM real si supera al anterior.
      * - 2..10 reps: actualiza el RM teórico (Brzycki) si supera al anterior.
+     * - 2..10 reps: no registra la serie si el RM teórico no supera al RM real.
      * La serie se marca como PR si ha mejorado alguno de los dos.
      */
     suspend fun logSet(
@@ -26,7 +29,7 @@ class ExerciseRepository(
         weight: Double,
         reps: Int,
         date: Long = System.currentTimeMillis()
-    ): SetLogEntity = database.withTransaction {
+    ): SetLogEntity? = database.withTransaction {
         require(weight > 0.0) { "weight must be > 0" }
         require(reps >= 1) { "reps must be >= 1" }
         val exercise = dao.getExerciseById(exerciseId)
@@ -43,6 +46,9 @@ class ExerciseRepository(
             }
             reps in 2..10 -> {
                 val theoretical = BrzyckiUtils.calculateTheoreticalOneRm(weight, reps)
+                if (exercise.realOneRm != null && theoretical <= exercise.realOneRm) {
+                    return@withTransaction null
+                }
                 if (theoretical > exercise.theoreticalOneRm) {
                     updated = exercise.copy(theoreticalOneRm = theoretical)
                     isPr = true

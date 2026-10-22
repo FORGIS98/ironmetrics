@@ -1,6 +1,6 @@
 package com.forgis.ironmetrics.ui
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +46,7 @@ fun ExerciseListScreen(
     state: UiState<List<ExerciseEntity>>,
     onExerciseClick: (Long) -> Unit,
     onAddExercise: (String) -> Unit,
+    onDeleteExercise: (Long) -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit,
     modifier: Modifier = Modifier
@@ -101,7 +102,11 @@ fun ExerciseListScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(state.data, key = { it.id }) { exercise ->
-                            ExerciseRow(exercise) { onExerciseClick(exercise.id) }
+                            ExerciseRow(
+                                exercise = exercise,
+                                onClick = { onExerciseClick(exercise.id) },
+                                onDelete = { onDeleteExercise(exercise.id) }
+                            )
                         }
                     }
                 }
@@ -118,18 +123,34 @@ fun ExerciseListScreen(
 }
 
 @Composable
-private fun ExerciseRow(exercise: ExerciseEntity, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(exercise.name, style = MaterialTheme.typography.titleMedium)
-            val real = exercise.realOneRm?.let { formatKg(it) } ?: "—"
-            Text(
-                "RM real: $real · RM teórico: ${formatKg(exercise.theoreticalOneRm)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+private fun ExerciseRow(exercise: ExerciseEntity, onClick: () -> Unit, onDelete: () -> Unit) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    Box {
+        Card(
+            modifier = Modifier.fillMaxWidth().combinedClickable(
+                onClick = onClick,
+                onLongClick = { menuExpanded = true }
+            ),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Text(exercise.name, style = MaterialTheme.typography.titleMedium)
+                val real = exercise.realOneRm?.let { formatKg(it) } ?: "—"
+                Text(
+                    "RM real: $real · RM teórico: ${formatKg(exercise.theoreticalOneRm)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Eliminar") },
+                onClick = {
+                    menuExpanded = false
+                    onDelete()
+                }
             )
         }
     }
